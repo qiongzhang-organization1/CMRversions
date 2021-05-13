@@ -1,9 +1,13 @@
 """This code modifies from the context maintenance and
 retrieval model from Lohnas et al. (2015) implemented by Rivka Cohen at
 https://github.com/rivertam2016/pyCMR2/blob/master/CMR2_files/pyCMR2.py.
-Email Qiong Zhang at qiongz@princeton.edu modifications for these modifications:
+
+Here are several major modifications:
 1. Retrieval rule uses a luce choice rule instead of leaky accumulators to speek up time, formulation similar to Kragel et al. 2015. 
-2. Model can be fit by maximizing likelihood instead of minimizing differences at behavioral data points
+2. Exclude extra-list intrusions and within-list repetitions
+3. Model can be fit by maximizing likelihood instead of minimizing differences at behavioral data points
+
+Email Qiong Zhang at qiongz@princeton.edu for any questions.
 """
 
 import numpy as np
@@ -180,12 +184,14 @@ class CMR2(object):
 
         # beta used by update_context_temp(); more details in doc string
         self.beta_in_play = self.params['beta_enc']
+        self.gamma_in_play = self.params['gamma_fc'] 
 
 
         # track which study item has been presented
         self.study_item_idx = 0
         # track which list has been presented
         self.list_idx = 0
+        self.plotting = 0
 
         # track which distractor item has been presented
         self.distractor_idx = self.nstudy_items_presented
@@ -363,6 +369,7 @@ class CMR2(object):
        
             # simulate a recall session/list 
             while continue_recall == 1:
+               
 
                 # get item activations to input to the accumulator
                 f_in = self.obtain_f_in() # obtain support for items
@@ -423,6 +430,51 @@ class CMR2(object):
 
         return recalled_items, support_values
 
+
+    def recall_start(self):
+        nitems_in_session = self.listlength * self.nlists # potential items to recall
+
+        # initialize list to store recalled items
+        recalled_items = []
+        support_values = []
+
+        
+        # MODIFIED: track what are the items to recall for this particular list, including potential extralist items
+        thislist_pattern = self.pres_list_nos[self.list_idx]
+        thislist_pres_indices = np.searchsorted(
+            self.all_session_items_sorted, thislist_pattern)
+        self.torecall = np.zeros([1, nitems_in_session], dtype=np.float32)
+        self.torecall[0][thislist_pres_indices] = 1        
+        
+    def recall_step(self,beta_rec,gamma_fc):
+        """Simulate a recall portion of an experiment, following a list
+        presentation. 
+        """
+        self.beta_in_play = self.params['beta_rec']  
+        self.gamma_in_play = self.params['gamma_fc'] 
+
+        # get item activations to input to the accumulator
+        f_in = self.obtain_f_in() # obtain support for items
+
+         # recall process:
+        winner_idx, support = self.retrieve_next(f_in.T)
+        winner_ID = np.sort(self.all_session_items)[winner_idx]
+
+        # If an item was retrieved, recover the item info corresponding
+        # to the activation value index retrieved by the accumulator
+        if winner_idx is not None:
+
+            # reinstantiate this item
+            self.present_item(winner_idx)
+
+            # MODIFIED: update the to-be-recalled remaining items
+            self.torecall[0][winner_idx] = -1
+
+            # update context
+            self.update_context_recall()
+
+        return winner_idx
+         
     def present_item(self, item_idx):
         """Set the f layer to a row vector of 0's with a 1 in the
         presented item location.  The model code will arrange this as a column
@@ -477,7 +529,7 @@ class CMR2(object):
         self.c_old = self.c_net.copy()
 
         # get input to the new context vector
-        net_cin = np.dot(self.M_FC_tem*self.params['gamma_fc']+self.M_FC_sem*(1-self.params['gamma_fc']), self.f_net.T)
+        net_cin = np.dot(self.M_FC_tem*self.gamma_in_play+self.M_FC_sem*(1-self.gamma_in_play), self.f_net.T)
 
         # get nelements in temporal subregion
         nelements_temp = self.nstudy_items_presented + 2*self.nlists + 1
@@ -549,7 +601,12 @@ class CMR2(object):
             else:    
                 self.params['cue_position'] = self.listlength
 
-
+                
+        if self.plotting == 1:        
+            plt.rcParams['figure.figsize'] = (15,15)
+            plt.subplot(3,4,1)
+            plt.imshow(self.M_FC_tem)
+            plt.title("M_FC_tem before encoding starts") 
         # for each item in the current list,
         for i in range(self.listlength):
 
@@ -570,7 +627,11 @@ class CMR2(object):
                 # Update M_FC
                 M_FC_exp = np.dot(self.c_old, self.f_net)
                 self.M_FC_tem += M_FC_exp
-
+            
+                if self.plotting == 1: 
+                    plt.subplot(3,4,i+2)
+                    plt.title("M_FC_tem after encoding item "+ str(i+1))
+                    plt.imshow(self.M_FC_tem)
 
                 # Update M_CF
                 M_CF_exp = np.dot(self.f_net.T, self.c_old.T)
@@ -579,6 +640,9 @@ class CMR2(object):
 
             # Update location of study item index
             self.study_item_idx += 1
+            
+        if self.plotting == 1:     
+            plt.show()
         
         # record end-of-list context
         if self.params['cue_position']==self.listlength:
@@ -636,6 +700,35 @@ def separate_files(data_path,rec_path,subj_id_path):
 
     return subj_presented_data, subj_recalled_data, unique_subj_ids
 
+
+def run_CMR2_singleList(recall_mode, pres_sheet, rec_sheet, LSA_mat, params):
+
+    """Run CMR2 for an individual subject / data sheet"""
+
+    # init. lists to store CMR2 output
+    resp_values = []
+    support_values = []
+
+    # create CMR2 object
+    this_CMR = CMR2(
+        recall_mode=recall_mode, params=params,
+        LSA_mat=LSA_mat, pres_sheet = pres_sheet, rec_sheet  =rec_sheet)
+
+    # layer LSA cos theta values onto the weight matrices
+    this_CMR.create_semantic_structure()
+
+    # Run CMR2 for each list
+    for i in range(1):
+        # present new list
+        this_CMR.present_list()
+
+        # recall session
+        rec_items_i, support_i = this_CMR.recall_session()
+        
+        # append recall responses & times
+        resp_values.append(rec_items_i)
+        support_values.append(support_i)
+    return resp_values, support_values, this_CMR.lkh, this_CMR.M_FC_tem
 
 def run_CMR2_singleSubj(recall_mode, pres_sheet, rec_sheet, LSA_mat, params):
 

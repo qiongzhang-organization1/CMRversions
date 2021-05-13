@@ -17,6 +17,12 @@ def load_data(data_id):
         data_path = '/mnt/bucket/people/qiongz/optimalmemory/pyCMR2/K02_files/K02_data.txt'
         data_rec_path = '/mnt/bucket/people/qiongz/optimalmemory/pyCMR2/K02_files/K02_recs.txt'
         subjects_path = '/mnt/bucket/people/qiongz/optimalmemory/pyCMR2/K02_files/K02_list_ids.txt' # assume each list is a subject
+    elif data_id==2:
+        LSA_path = '/mnt/bucket/people/qiongz/optimalmemory/pyCMR2/K02_files/K02_LSA.txt'
+        data_path = '/mnt/bucket/people/qiongz/CMRversions/datafile/K02_temp_data_structure.txt'
+        data_rec_path = '/mnt/bucket/people/qiongz/CMRversions/datafile/K02_temp_data_structure.txt'
+        subjects_path = '/mnt/bucket/people/qiongz/CMRversions/datafile/K02_temp_list_ids.txt' # assume each list is a subject    
+        
     LSA_mat = np.loadtxt(LSA_path, delimiter=',', dtype=np.float32)        
     data_cat_path = 'datafile/autolab_pres_cats.txt'
     return LSA_mat, data_path, data_rec_path, data_cat_path, subjects_path
@@ -338,7 +344,7 @@ def model_probCMR(N, ll, lag_examine,data_id):
             'enc_rate': 1.0,
 
         }
-    elif data_id==1:
+    else:
         param_dict = {
 
             'beta_enc':  0.7887626184661226,           # rate of context drift during encoding
@@ -382,6 +388,10 @@ def model_probCMR(N, ll, lag_examine,data_id):
         resp, times,_ = CMR2_simple.run_CMR2(
             recall_mode=0,LSA_mat=LSA_mat, data_path=data_path, rec_path=data_rec_path,
             params=param_dict, subj_id_path=subjects_path, sep_files=False)   
+        
+
+        #resp, times,_ = CMR2_simple.run_CMR2_singleSubj(recall_mode=0, pres_sheet=data_pres, rec_sheet=data_rec, LSA_mat=LSA_mat, params=param_dict)
+        
         _,CMR_recalls,CMR_sp = data_recode(data_pres, resp)
         return CMR_sp
     if N==1:# recall_mode = 1 to calculate likelihood of data based on parameters
@@ -389,6 +399,10 @@ def model_probCMR(N, ll, lag_examine,data_id):
             recall_mode=1,LSA_mat=LSA_mat, data_path=data_path, rec_path=data_rec_path,
             params=param_dict, subj_id_path=subjects_path, sep_files=False)   
         return lkh   
+    if N==2: # simulate single list (simlar to N=0)
+        resp, times,_ = CMR2_simple.run_CMR2_singleList(recall_mode=0, pres_sheet=data_pres, rec_sheet=data_rec, LSA_mat=LSA_mat, params=param_dict)
+        _,CMR_recalls,CMR_sp = data_recode(data_pres, resp)
+        return CMR_sp
     else:
         RMSE, data_spc,CMR_spcs,data_pfr,CMR_pfrs,data_crp,CMR_crps,data_intrusion,CMR_intrusions,data_LSA,CMR_LSAs,data_sprob,CMR_sprobs = simualteCMR(param_dict, N, ll, lag_examine, LSA_mat, data_path, data_rec_path, subjects_path)
         plot_results(data_spc,CMR_spcs,data_pfr,CMR_pfrs,data_crp,CMR_crps,data_intrusion,CMR_intrusions,data_LSA,CMR_LSAs,data_sprob,CMR_sprobs)
