@@ -158,22 +158,22 @@ def init_functions(ProbCMR, cmr_version_dir='CMRversions/'):
 
 
         # load data
-        def load_data(self, data_id):
-            if data_id == 0:
+        def load_data(self,data_id):
+            if data_id ==0:
                 LSA_path = cmr_version_dir + 'datafile/autolab_GloVe.txt'
                 data_path = cmr_version_dir + 'datafile/autolab_pres.txt'
                 data_rec_path = cmr_version_dir + 'datafile/autolab_recs.txt'
-                #data_cat_path = cmr_version_dir + 'datafile/autolab_pres_cats.txt'
+                #data_cat_path = 'datafile/autolab_pres_cats.txt'
                 subjects_path = cmr_version_dir + 'datafile/autolab_subject_id.txt'
-            elif data_id == 1:
-                LSA_path = '/mnt/bucket/people/qiongz/optimalmemory/pyCMR2/K02_files/K02_LSA.txt'
-                data_path = '/mnt/bucket/people/qiongz/optimalmemory/pyCMR2/K02_files/K02_data.txt'
-                data_rec_path = '/mnt/bucket/people/qiongz/optimalmemory/pyCMR2/K02_files/K02_recs.txt'
-                subjects_path = '/mnt/bucket/people/qiongz/optimalmemory/pyCMR2/K02_files/K02_list_ids.txt' # assume each list is a subject
+            elif data_id==1:
+                LSA_path = cmr_version_dir + 'datafile/K02_LSA.txt'
+                data_path = cmr_version_dir + 'datafile/K02_data.txt'
+                data_rec_path = cmr_version_dir + 'datafile/K02_recs.txt'
+                subjects_path = cmr_version_dir + 'datafile/K02_list_ids.txt' # assume each list is a subject
+
             LSA_mat = np.loadtxt(LSA_path, delimiter=',', dtype=np.float32)        
             data_cat_path = cmr_version_dir + 'datafile/autolab_pres_cats.txt'
             return LSA_mat, data_path, data_rec_path, data_cat_path, subjects_path
-
 
         # data recoding 
         def data_recode(self, data_pres,data_rec):
